@@ -1,111 +1,140 @@
 // pages/main/index.js
 var QR = require("../../utils/qrcode.js");
+var CANVAS_ID = "mycanvas";
+var DEFAULT_PLACEHOLDER = "http://wxapp-union.com";
+var FALLBACK_CANVAS_SIZE = 300;
+var MAX_CONTENT_LENGTH = 255;
+
 Page({
   data: {
     maskHidden: true,
-    imagePath: '',
-    placeholder: 'http://wxapp-union.com' //默认二维码生成文本
+    imagePath: "",
+    placeholder: DEFAULT_PLACEHOLDER, // 默认二维码生成文本
+    isRendering: false
   },
-  onLoad: function (options) {
-    // 页面初始化 options为页面跳转所带来的参数
-    var size = this.setCanvasSize(); //动态设置画布大小
-    var initUrl = this.data.placeholder;
-    this.createQrCode(initUrl, "mycanvas", size.w, size.h);
-
-
-  },
-  onReady: function () {
-
-  },
-  onShow: function () {
-
-    // 页面显示
-  },
-  onHide: function () {
-    // 页面隐藏
+  onLoad: function () {
+    this.renderQrCode(this.data.placeholder);
   },
 
-  onUnload: function () {
-    // 页面关闭
-
-  },
-  //适配不同屏幕大小的canvas
+  // 适配不同屏幕大小的 canvas
   setCanvasSize: function () {
-    var size = {};
     try {
       var res = wx.getSystemInfoSync();
-      var scale = 750 / 686; //不同屏幕下canvas的适配比例；设计稿是750宽
+      var scale = 750 / 686; // 不同屏幕下 canvas 的适配比例；设计稿是 750 宽
       var width = res.windowWidth / scale;
-      var height = width; //canvas画布为正方形
-      size.w = width;
-      size.h = height;
+      return {
+        w: width,
+        h: width // canvas 画布为正方形
+      };
     } catch (e) {
-      // Do something when catch error
-      console.log("获取设备信息失败" + e);
+      console.error("获取设备信息失败", e);
+      return {
+        w: FALLBACK_CANVAS_SIZE,
+        h: FALLBACK_CANVAS_SIZE
+      };
     }
-    return size;
   },
-  createQrCode: function (url, canvasId, cavW, cavH) {
-    //调用插件中的draw方法，绘制二维码图片
-    QR.api.draw(url, canvasId, cavW, cavH, this, this.canvasToTempImage);
-    // setTimeout(() => { this.canvasToTempImage();},100);
 
+  createQrCode: function (content, canvasId, cavW, cavH, onDone) {
+    var that = this;
+    QR.api.draw(content, canvasId, cavW, cavH, this, function () {
+      that.canvasToTempImage(canvasId, onDone);
+    });
   },
-  //获取临时缓存照片路径，存入data中
-  canvasToTempImage: function () {
+
+  // 获取临时缓存图片路径，存入 data 中
+  canvasToTempImage: function (canvasId, callback) {
     var that = this;
     wx.canvasToTempFilePath({
-      canvasId: 'mycanvas',
+      canvasId: canvasId,
       success: function (res) {
-        var tempFilePath = res.tempFilePath;
-        console.log(tempFilePath);
         that.setData({
-          imagePath: tempFilePath,
+          imagePath: res.tempFilePath
         });
+        if (typeof callback === "function") {
+          callback(null);
+        }
       },
-      fail: function (res) {
-        console.log(res);
+      fail: function (err) {
+        console.error("二维码导出失败", err);
+        if (typeof callback === "function") {
+          callback(err);
+        }
       }
     }, that);
   },
-  //点击图片进行预览，长按保存分享图片
-  previewImg: function (e) {
-    var img = this.data.imagePath;
-    wx.previewImage({
-      current: img, // 当前显示图片的http链接
-      urls: [img] // 需要预览的图片http链接列表
-    })
-  },
-  formSubmit: function (e) {
+
+  renderQrCode: function (content) {
     var that = this;
-    var url = e.detail.value.url;
-    if (url === "") {
+    if (that.data.isRendering) {
+      return;
+    }
+
+    var size = that.setCanvasSize();
+    that.setData({
+      maskHidden: false,
+      isRendering: true
+    });
+    wx.showLoading({
+      title: "生成中..."
+    });
+
+    that.createQrCode(content, CANVAS_ID, size.w, size.h, function (err) {
+      wx.hideLoading();
+      that.setData({
+        maskHidden: true,
+        isRendering: false
+      });
+      if (err) {
+        wx.showToast({
+          icon: "none",
+          title: "生成失败，请重试",
+          duration: 2000
+        });
+      }
+    });
+  },
+
+  // 点击图片进行预览，长按保存分享图片
+  previewImg: function () {
+    var img = this.data.imagePath;
+    if (!img) {
       wx.showToast({
-        icon: 'none',
-        title: '请输入网址',
+        icon: "none",
+        title: "请先生成二维码",
         duration: 2000
       });
       return;
     }
-    that.setData({
-      maskHidden: false,
+
+    wx.previewImage({
+      current: img, // 当前显示图片的http链接
+      urls: [img] // 需要预览的图片http链接列表
     });
-    wx.showToast({
-      title: '生成中...',
-      icon: 'loading',
-      duration: 2000
-    });
-    var st = setTimeout(function () {
-      wx.hideToast()
-      var size = that.setCanvasSize();
-      //绘制二维码
-      that.createQrCode(url, "mycanvas", size.w, size.h);
-      that.setData({
-        maskHidden: true
+  },
+
+  formSubmit: function (e) {
+    var inputValue = e.detail.value.url || "";
+    var content = inputValue.trim();
+
+    if (!content) {
+      wx.showToast({
+        icon: "none",
+        title: "请输入网址",
+        duration: 2000
       });
-      clearTimeout(st);
-    }, 2000)
+      return;
+    }
 
+    if (content.length > MAX_CONTENT_LENGTH) {
+      wx.showToast({
+        icon: "none",
+        title: "输入内容过长",
+        duration: 2000
+      });
+      return;
+    }
+
+    this.renderQrCode(content);
   }
-
-})
+});
