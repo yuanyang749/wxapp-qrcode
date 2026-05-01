@@ -11,7 +11,7 @@
 ## 安装
 
 ``` bash
-git clone https://github.com/demi520/wxapp-qrcode.git
+git clone https://github.com/yuanyang749/wxapp-qrcode.git
 ```
 
 ## 使用
@@ -73,6 +73,14 @@ createQrCode ('wxapp-qrcode', 'mycanvas', 300, 300)
 ### 如何适配不同屏幕大小的canvas？
 
 可参考 `pages/main/index.js` 中的 `setCanvasSize` 方法。
+
+## 维护说明
+
+欢迎通过 Issue/PR 反馈问题或提交改进，提交前请尽量附上最小复现步骤或使用场景说明，便于快速定位与处理。
+
+## License
+
+本项目使用 MIT 许可证，详见仓库根目录的 `LICENSE` 文件。
 
 ## Ps
 
