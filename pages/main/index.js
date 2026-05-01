@@ -37,15 +37,15 @@ Page({
 
   createQrCode: function (content, canvasId, cavW, cavH, onDone) {
     var that = this;
-    QR.api.draw(content, canvasId, cavW, cavH, this, function () {
-      that.canvasToTempImage(canvasId, onDone);
+    QR.api.draw(content, canvasId, cavW, cavH, this, function (meta) {
+      that.canvasToTempImage(canvasId, meta && meta.drawArea, onDone);
     });
   },
 
   // 获取临时缓存图片路径，存入 data 中
-  canvasToTempImage: function (canvasId, callback) {
+  canvasToTempImage: function (canvasId, area, callback) {
     var that = this;
-    wx.canvasToTempFilePath({
+    var options = {
       canvasId: canvasId,
       success: function (res) {
         that.setData({
@@ -61,7 +61,16 @@ Page({
           callback(err);
         }
       }
-    }, that);
+    };
+
+    if (area && area.width > 0 && area.height > 0) {
+      options.x = Math.max(0, Math.floor(area.x));
+      options.y = Math.max(0, Math.floor(area.y));
+      options.width = Math.max(1, Math.floor(area.width));
+      options.height = Math.max(1, Math.floor(area.height));
+    }
+
+    wx.canvasToTempFilePath(options, that);
   },
 
   renderQrCode: function (content) {

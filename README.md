@@ -43,16 +43,25 @@ Page({
   },
 
   createQrCode(content, canvasId, cavW, cavH) {
-    QR.api.draw(content, canvasId, cavW, cavH, this, this.canvasToTempImage);
+    QR.api.draw(content, canvasId, cavW, cavH, this, (meta) => {
+      this.canvasToTempImage(canvasId, meta && meta.drawArea);
+    });
   },
 
-  canvasToTempImage() {
-    wx.canvasToTempFilePath({
-      canvasId: "mycanvas",
+  canvasToTempImage(canvasId, area) {
+    const options = {
+      canvasId,
       success: (res) => {
         this.setData({ imagePath: res.tempFilePath });
       }
-    }, this);
+    };
+    if (area) {
+      options.x = area.x;
+      options.y = area.y;
+      options.width = area.width;
+      options.height = area.height;
+    }
+    wx.canvasToTempFilePath(options, this);
   }
 });
 ```
@@ -78,7 +87,11 @@ this.createQrCode("wxapp-qrcode", "mycanvas", 300, 300);
 - `cavW`: 绘制区域宽度（建议与高度保持一致）
 - `cavH`: 绘制区域高度
 - `thisArg`: 页面或组件的 `this`，用于 `wx.createCanvasContext`
-- `cb`: 绘制完成回调函数，默认空函数
+- `cb`: 绘制完成回调函数，默认空函数。回调参数包含绘制元信息：
+  - `drawArea`: 实际绘制区域（适合导出时裁剪掉画布多余空白）
+  - `codeArea`: 二维码码区（不含四周静区）
+  - `moduleSize`: 单模块像素尺寸
+  - `qrVersion`: 自动选择的二维码版本
 - `ecc`: 纠错等级（可选），默认使用当前等级
 
 纠错等级映射：
@@ -111,6 +124,10 @@ QR.api.draw(content, "mycanvas", 300, 300, this, this.onDrawDone);
 - 检查页面是否存在对应 `canvas-id` 的 Canvas 节点
 - 检查 `draw` 时是否传入正确的 `thisArg`
 - 检查回调中 `wx.canvasToTempFilePath` 的 `canvasId` 是否一致
+
+### 导出后四周有多余空白
+
+- 建议在 `draw` 回调中读取 `meta.drawArea`，并在 `wx.canvasToTempFilePath` 里传入 `x/y/width/height` 进行裁剪导出
 
 ### 如何适配不同屏幕
 

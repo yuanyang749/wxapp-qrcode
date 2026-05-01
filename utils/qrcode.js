@@ -774,9 +774,21 @@
       var frame = that.getFrame(str),
         // 组件中生成qrcode需要绑定this 
         ctx = wx.createCanvasContext(canvas, $this),
-        px = Math.round(size / (width + 8));
+        px = Math.max(1, Math.floor(size / (width + 8)));
       var roundedSize = px * (width + 8),
         offset = Math.floor((size - roundedSize) / 2);
+      var drawArea = {
+        x: offset,
+        y: offset,
+        width: roundedSize,
+        height: roundedSize
+      };
+      var codeArea = {
+        x: offset + 4 * px,
+        y: offset + 4 * px,
+        width: width * px,
+        height: width * px
+      };
       size = roundedSize;
       //ctx.clearRect(0, 0, cavW, cavH);
       ctx.setFillStyle('#ffffff')
@@ -791,7 +803,12 @@
       }
       //--增加绘制完成回调
       ctx.draw(false, function () {
-        cb();
+        cb({
+          moduleSize: px,
+          qrVersion: version,
+          drawArea: drawArea,
+          codeArea: codeArea
+        });
       })
 
     }
