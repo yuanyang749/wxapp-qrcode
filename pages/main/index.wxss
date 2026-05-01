@@ -70,6 +70,15 @@
   border-bottom: 1rpx solid #e5e5e5;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+}
+
+.logo-preview {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 8rpx;
+  border: 1rpx solid #eee;
+  background: #f9f9f9;
 }
 
 .logo-path {

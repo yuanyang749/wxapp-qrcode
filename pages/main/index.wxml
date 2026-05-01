@@ -101,10 +101,11 @@
 
       <view wx:if="{{logoSourceType==='local'}}" class="logo-local-row">
         <button type="default" size="mini" bindtap="chooseLogoImage">选择 Logo</button>
-        <text class="logo-path">{{logoLocalPath ? '已选择本地图片' : '未选择图片'}}</text>
+        <image wx:if="{{logoPreviewPath}}" class="logo-preview" src="{{logoPreviewPath}}" mode="aspectFill" />
+        <text wx:else class="logo-path">未选择图片</text>
       </view>
 
-      <view wx:if="{{logoSourceType==='url'}}" class="input-row">
+      <view wx:if="{{logoSourceType==='url'}}" class="input-row logo-url-row">
         <label>Logo URL</label>
         <input
           value="{{logoUrl}}"
@@ -113,6 +114,7 @@
           bindinput="onFieldInput"
           data-key="logoUrl"
         />
+        <image wx:if="{{logoUrl}}" class="logo-preview url-preview" src="{{logoUrl}}" mode="aspectFill" />
       </view>
 
       <view class="input-row">
@@ -157,5 +159,5 @@
 
 <view hidden="{{maskHidden}}" class="mask"></view>
 <view class="canvas-box">
-  <canvas style="width: 686rpx;height: 686rpx;background:#f1f1f1;" canvas-id="mycanvas" />
+  <canvas style="width: 686rpx;height: 686rpx;background:#f1f1f1;" id="mycanvas" type="2d" />
 </view>

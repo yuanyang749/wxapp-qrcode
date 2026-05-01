@@ -764,7 +764,11 @@
     ctx.arcTo(x, y + height, x, y, r);
     ctx.arcTo(x, y, x + width, y, r);
     ctx.closePath();
-    ctx.setFillStyle(fillColor);
+    if (ctx.setFillStyle) {
+      ctx.setFillStyle(fillColor);
+    } else {
+      ctx.fillStyle = fillColor;
+    }
     ctx.fill();
   }
 
@@ -797,7 +801,25 @@
     };
   }
 
-  function loadLogoInfo(src, callback) {
+  function loadLogoInfo(src, canvas, callback) {
+    if (canvas && canvas.createImage) {
+      // Canvas 2D 模式：必须使用 canvas.createImage 创建图片对象
+      var img = canvas.createImage();
+      img.onload = function () {
+        callback(null, {
+          path: img,
+          width: img.width,
+          height: img.height
+        });
+      };
+      img.onerror = function (err) {
+        callback(err || new Error("Canvas 2D load image failed"), null);
+      };
+      img.src = src;
+      return;
+    }
+
+    // 传统模式：使用 wx.getImageInfo
     function tryGetImageInfo(candidates, index) {
       if (index >= candidates.length) {
         callback(new Error("load logo failed"), null);
@@ -899,6 +921,16 @@
         console.warn('No canvas provided to draw QR code in!');
         return;
       }
+
+      // 判断是否为 Canvas 2D 模式（canvas 为对象且有 getContext 方法）
+      var isCanvas2D = typeof canvas === 'object' && canvas.getContext;
+      var ctx;
+      if (isCanvas2D) {
+        ctx = canvas.getContext('2d');
+      } else {
+        ctx = wx.createCanvasContext(canvas, $this);
+      }
+
       var previousEccLevel = ecclevel;
       var useAutoHighEcc = !ecc && drawOptions.logo.enabled;
       var drawEccLevel = ecc || (useAutoHighEcc ? 4 : ecclevel);
@@ -907,10 +939,8 @@
       var size = Math.min(cavW, cavH);
       str = that.utf16to8(str); //增加中文显示
 
-      var frame = that.getFrame(str),
-        // 组件中生成qrcode需要绑定this 
-        ctx = wx.createCanvasContext(canvas, $this),
-        px = Math.max(1, Math.floor(size / (width + 8)));
+      var frame = that.getFrame(str);
+      var px = Math.max(1, Math.floor(size / (width + 8)));
       if (useAutoHighEcc) {
         ecclevel = previousEccLevel;
       }
@@ -935,20 +965,32 @@
         codeArea: codeArea
       };
       size = roundedSize;
-      //ctx.clearRect(0, 0, cavW, cavH);
-      ctx.setFillStyle(drawOptions.backgroundColor);
+
+      // 设置填充色辅助函数
+      function setFill(color) {
+        if (isCanvas2D) {
+          ctx.fillStyle = color;
+        } else {
+          ctx.setFillStyle(color);
+        }
+      }
+
+      // 绘制背景
+      setFill(drawOptions.backgroundColor);
       ctx.fillRect(0, 0, cavW, cavH);
 
+      // 处理前景（普通色或渐变）
       if (drawOptions.gradient.enabled) {
         var points = getGradientPoints(drawArea, drawOptions.gradient.angle);
         var gradient = ctx.createLinearGradient(points.x0, points.y0, points.x1, points.y1);
         gradient.addColorStop(0, drawOptions.gradient.startColor);
         gradient.addColorStop(1, drawOptions.gradient.endColor);
-        ctx.setFillStyle(gradient);
+        setFill(gradient);
       } else {
-        ctx.setFillStyle(drawOptions.foregroundColor);
+        setFill(drawOptions.foregroundColor);
       }
 
+      // 绘制码点
       for (var i = 0; i < width; i++) {
         for (var j = 0; j < width; j++) {
           if (frame[j * width + i]) {
@@ -961,9 +1003,14 @@
         if (warnings.length) {
           meta.warnings = warnings;
         }
-        ctx.draw(false, function () {
+        if (isCanvas2D) {
+          // 2D 模式是即时渲染，直接执行回调
           cb(meta);
-        });
+        } else {
+          ctx.draw(false, function () {
+            cb(meta);
+          });
+        }
       }
 
       function drawLogo(info) {
@@ -1011,7 +1058,8 @@
         return;
       }
 
-      loadLogoInfo(drawOptions.logo.src, function (err, logoInfo) {
+      // 2D 模式下需要传入 canvas 实例用于 createImage
+      loadLogoInfo(drawOptions.logo.src, isCanvas2D ? canvas : null, function (err, logoInfo) {
         if (err || !logoInfo || !logoInfo.path) {
           warnings.push("Logo load failed; rendered QR without logo");
           doneDraw();
@@ -1019,7 +1067,6 @@
         }
         drawLogo(logoInfo);
       });
-
     }
   }
   module.exports = {

@@ -90,9 +90,15 @@ Page({
 
   onFieldInput: function (e) {
     var key = e.currentTarget.dataset.key;
-    this.setData({
-      [key]: e.detail.value
-    });
+    var val = e.detail.value;
+    var updateData = {
+      [key]: val
+    };
+    // 如果修改的是 Logo URL，同步更新预览路径
+    if (key === "logoUrl") {
+      updateData.logoPreviewPath = val;
+    }
+    this.setData(updateData);
   },
 
   onFieldSwitch: function (e) {
@@ -201,10 +207,10 @@ Page({
     };
   },
 
-  createQrCode: function (content, canvasId, cavW, cavH, drawOptions, onDone) {
+  createQrCode: function (content, canvasObj, cavW, cavH, drawOptions, onDone) {
     var that = this;
-    QR.api.draw(content, canvasId, cavW, cavH, this, function (meta) {
-      that.canvasToTempImage(canvasId, meta && meta.drawArea, function (err) {
+    QR.api.draw(content, canvasObj, cavW, cavH, this, function (meta) {
+      that.canvasToTempImage(canvasObj, meta && meta.drawArea, function (err) {
         if (typeof onDone === "function") {
           onDone(err, meta || {});
         }
@@ -212,10 +218,10 @@ Page({
     }, undefined, drawOptions);
   },
 
-  canvasToTempImage: function (canvasId, area, callback) {
+  canvasToTempImage: function (canvasObj, area, callback) {
     var that = this;
     var options = {
-      canvasId: canvasId,
+      canvas: canvasObj, // Canvas 2D 模式必须传入 canvas 对象
       success: function (res) {
         that.setData({
           imagePath: res.tempFilePath
@@ -238,7 +244,7 @@ Page({
       options.width = Math.max(1, Math.floor(area.width));
       options.height = Math.max(1, Math.floor(area.height));
     }
-    wx.canvasToTempFilePath(options, that);
+    wx.canvasToTempFilePath(options);
   },
 
   renderQrCode: function (content) {
@@ -250,50 +256,64 @@ Page({
     var configResult = this.buildRenderOptions();
     if (configResult.error) {
       wx.showToast({
-        icon: "none",
         title: configResult.error,
-        duration: 2000
+        icon: "none"
       });
       return;
     }
 
-    var size = that.setCanvasSize();
-    that.setData({
-      maskHidden: false,
+    this.setData({
       isRendering: true,
-      renderWarnings: []
+      maskHidden: false
     });
+
     wx.showLoading({
-      title: "生成中..."
+      title: "生成中...",
+      mask: true
     });
 
-    that.createQrCode(content, CANVAS_ID, size.w, size.h, configResult.options, function (err, meta) {
-      wx.hideLoading();
-      that.setData({
-        maskHidden: true,
-        isRendering: false
-      });
-      if (err) {
-        wx.showToast({
-          icon: "none",
-          title: "生成失败，请重试",
-          duration: 2000
-        });
-        return;
-      }
+    var size = this.setCanvasSize();
 
-      var allWarnings = (configResult.warnings || []).concat(meta.warnings || []);
-      that.setData({
-        renderWarnings: allWarnings
-      });
-      if (allWarnings.length) {
-        wx.showToast({
-          icon: "none",
-          title: "已生成，部分配置已降级",
-          duration: 1800
+    // Canvas 2D 需要通过 SelectorQuery 获取 node
+    wx.createSelectorQuery()
+      .select('#' + CANVAS_ID)
+      .fields({ node: true, size: true })
+      .exec((res) => {
+        if (!res[0] || !res[0].node) {
+          console.error("未找到 Canvas 节点");
+          wx.hideLoading();
+          that.setData({ isRendering: false, maskHidden: true });
+          return;
+        }
+
+        var canvas = res[0].node;
+        var dpr = wx.getSystemInfoSync().pixelRatio;
+        
+        // 设置 Canvas 内部渲染分辨率（乘以 dpr 保证清晰度）
+        canvas.width = res[0].width * dpr;
+        canvas.height = res[0].height * dpr;
+        var ctx = canvas.getContext('2d');
+        ctx.scale(dpr, dpr);
+
+        that.createQrCode(content, canvas, size.w, size.h, configResult.options, function (err, meta) {
+          wx.hideLoading();
+          var warnings = configResult.warnings.slice(0);
+          if (meta && meta.warnings) {
+            warnings = warnings.concat(meta.warnings);
+          }
+          that.setData({
+            isRendering: false,
+            maskHidden: true,
+            renderWarnings: warnings
+          });
+          if (err) {
+            wx.showToast({
+              title: "生成失败",
+              icon: "none"
+            });
+          }
         });
-      }
-    });
+      });
   },
 
   previewImg: function () {
