@@ -1,87 +1,130 @@
-# 微信小程序-二维码生成器
+# wxapp-qrcode
 
-> 本项目用于在微信小程序中生成二维码，也可用于第三方框架Mpvue,Taro等。
+微信小程序二维码生成工具，基于 Canvas 绘制，支持中文内容（UTF-8 转码）。  
+可直接用于原生小程序，也可按同样方式接入 Mpvue、Taro 等项目。
 
-## 生成预览
+## 功能特性
 
-![jsh5css.cn](http://jsh5css.cn/blog/wp-content/uploads/2016/12/20161207143611_73427.png)
-
-* 可支持输入中文文本
+- 在小程序 Canvas 中生成二维码
+- 支持中文与常见文本内容
+- 支持绘制完成回调，便于后续导出图片
+- 支持在页面或自定义组件内调用
 
 ## 安装
 
-``` bash
+```bash
 git clone https://github.com/yuanyang749/wxapp-qrcode.git
 ```
 
-## 使用
+将 `utils/qrcode.js` 复制到你的项目目录并引入。
 
-1.创建canvas节点,以及设置canvas-id。(可以控制该区域不显示，但是必须要存在)
+## 快速开始
 
-```html
-<canvas style="width: 686rpx;height: 686rpx;background:#f1f1f1;" canvas-id="mycanvas"/>
+### 1. 准备 Canvas 节点
+
+```xml
+<canvas style="width: 686rpx; height: 686rpx; background: #f1f1f1;" canvas-id="mycanvas" />
 ```
 
-2.引入qrcode.js,将`utils/qrcode.js` 文件复制到自己工程里，并引入。
+说明：Canvas 节点可以隐藏，但必须存在于页面中。
+
+### 2. 引入模块
 
 ```javascript
-// 注意： 这里xxx是你自己的路径
-let QR = require("xxxx/qrcode.js")  // require方式
-import QR from 'xxxx/qrcode.js'    // es6的方式
+const QR = require("路径/qrcode.js");
 ```
 
-3.在js文件中，定义相关的方法，**要注意在data中创建imagePath（最终生成的图片路径）,可以将img的src属性绑定imagePath**
+### 3. 生成二维码
 
 ```javascript
-createQrCode: function (content, canvasId, cavW, cavH) {
-  //调用插件中的draw方法，绘制二维码图片
-  //this.canvasToTempImage 为绘制完成的回调函数，可根据自己的业务添加
-  QR.api.draw(content, canvasId, cavW, cavH, this, this.canvasToTempImage);
-},
+Page({
+  data: {
+    imagePath: ""
+  },
 
-//获取临时缓存图片路径，存入data中
-canvasToTempImage: function (canvasId) {
-  let that = this;
-  wx.canvasToTempFilePath({
-    canvasId,   // 这里canvasId即之前创建的canvas-id
-    success: function (res) {
-      let tempFilePath = res.tempFilePath;
-      console.log(tempFilePath);
-      that.setData({       // 如果采用mpvue,即 this.imagePath = tempFilePath
-        imagePath:tempFilePath,
-      });
-    },
-    fail: function (res) {
-      console.log(res);
-    }
-  });
-}
+  createQrCode(content, canvasId, cavW, cavH) {
+    QR.api.draw(content, canvasId, cavW, cavH, this, this.canvasToTempImage);
+  },
+
+  canvasToTempImage() {
+    wx.canvasToTempFilePath({
+      canvasId: "mycanvas",
+      success: (res) => {
+        this.setData({ imagePath: res.tempFilePath });
+      }
+    }, this);
+  }
+});
 ```
 
-4.绑定事件，调用createQrCode，生成二维码
+调用示例：
 
 ```javascript
-createQrCode ('wxapp-qrcode', 'mycanvas', 300, 300)
+this.createQrCode("wxapp-qrcode", "mycanvas", 300, 300);
 ```
 
-## FAQ
+## API
 
-### 自定义组件中不能生成qrcode?
+模块导出：`QR.api`
 
-封装方法时: 添加上this, `QR.api.draw(url, canvasId, cavW, cavH, this);` 可参考qrcode.js 768行，*[wx.createCanvasContext](https://developers.weixin.qq.com/miniprogram/dev/api/canvas/wx.createCanvasContext.html)*
+### `QR.api.draw(str, canvasId, cavW, cavH, thisArg, cb, ecc)`
 
-### 如何适配不同屏幕大小的canvas？
+用于绘制二维码到指定 Canvas。
 
-可参考 `pages/main/index.js` 中的 `setCanvasSize` 方法。
+参数说明：
 
-## 维护说明
+- `str`: 要编码的文本内容
+- `canvasId`: Canvas 的 `canvas-id`
+- `cavW`: 绘制区域宽度（建议与高度保持一致）
+- `cavH`: 绘制区域高度
+- `thisArg`: 页面或组件的 `this`，用于 `wx.createCanvasContext`
+- `cb`: 绘制完成回调函数，默认空函数
+- `ecc`: 纠错等级（可选），默认使用当前等级
 
-欢迎通过 Issue/PR 反馈问题或提交改进，提交前请尽量附上最小复现步骤或使用场景说明，便于快速定位与处理。
+纠错等级映射：
+
+- `1`: L
+- `2`: M（默认）
+- `3`: Q
+- `4`: H
+
+### `QR.api.getFrame(str)`
+
+返回二维码矩阵数据（内部使用，也可用于自定义渲染场景）。
+
+### `QR.api.utf16to8(str)`
+
+将 UTF-16 文本转换为 UTF-8 字节序列，确保中文内容可正确编码。
+
+## 在自定义组件中使用
+
+调用 `draw` 时务必传入组件实例 `this`：
+
+```javascript
+QR.api.draw(content, "mycanvas", 300, 300, this, this.onDrawDone);
+```
+
+## 常见问题
+
+### 生成失败或无内容
+
+- 检查页面是否存在对应 `canvas-id` 的 Canvas 节点
+- 检查 `draw` 时是否传入正确的 `thisArg`
+- 检查回调中 `wx.canvasToTempFilePath` 的 `canvasId` 是否一致
+
+### 如何适配不同屏幕
+
+可参考示例页 `pages/main/index.js` 的 `setCanvasSize` 方法，按窗口宽度动态计算正方形画布尺寸。
+
+## 示例
+
+完整示例位于 `pages/main/index.js` 与 `pages/main/index.wxml`。
+
+## 维护与贡献
+
+欢迎提交 Issue / PR。  
+建议在反馈问题时提供最小复现步骤、输入内容和设备信息，便于快速定位。
 
 ## License
 
-本项目使用 MIT 许可证，详见仓库根目录的 `LICENSE` 文件。
-
-## Ps
-
-测试有其他问题请回帖哦，感激！！
+MIT，详见 `LICENSE`。
