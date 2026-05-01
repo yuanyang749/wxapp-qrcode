@@ -1,57 +1,122 @@
 /* pages/main/index.wxss */
 .container-box {
-    background-color: #efeff4;
-    height: 100vh
+  background-color: #efeff4;
+  min-height: 100vh;
+  padding-bottom: 30rpx;
 }
 
 .img-box {
-    padding: 32rpx;
-    background-color: #fff;
-    border-bottom: 1rpx solid #e5e5e5;
-    position: relative
+  padding: 32rpx;
+  background-color: #fff;
+  border-bottom: 1rpx solid #e5e5e5;
 }
 
 .img-box image {
-    width: 686rpx;
-    height: 686rpx;
-    background-color: #f9f9f9
+  width: 686rpx;
+  height: 686rpx;
+  background-color: #f9f9f9;
 }
 
-.input-row {
-    margin: 30rpx auto;
-    border-bottom: 1rpx solid #e5e5e5;
-    border-top: 1rpx solid #e5e5e5;
-    display: flex;
-    align-items: center;
-    height: 88rpx;
-    padding: 0 32rpx;
-    background-color: #fff;
-    font-size: 34rpx;
-    color: #000
+.input-row,
+.switch-row {
+  margin: 20rpx auto 0;
+  border-bottom: 1rpx solid #e5e5e5;
+  border-top: 1rpx solid #e5e5e5;
+  display: flex;
+  align-items: center;
+  min-height: 88rpx;
+  padding: 0 32rpx;
+  background-color: #fff;
+  font-size: 30rpx;
+  color: #000;
 }
 
 .input-row input {
-    margin-left: 100rpx;
-    flex: 1
+  margin-left: 40rpx;
+  flex: 1;
+  text-align: right;
+}
+
+.switch-row {
+  justify-content: space-between;
+}
+
+.logo-source-group {
+  margin: 20rpx auto 0;
+  padding: 24rpx 32rpx;
+  background: #fff;
+  border-top: 1rpx solid #e5e5e5;
+  border-bottom: 1rpx solid #e5e5e5;
+  display: flex;
+  gap: 40rpx;
+}
+
+.radio-item {
+  display: inline-flex;
+  align-items: center;
+  font-size: 28rpx;
+  color: #333;
+}
+
+.radio-item text {
+  margin-left: 10rpx;
+}
+
+.logo-local-row {
+  margin: 20rpx auto 0;
+  padding: 24rpx 32rpx;
+  background: #fff;
+  border-top: 1rpx solid #e5e5e5;
+  border-bottom: 1rpx solid #e5e5e5;
+  display: flex;
+  align-items: center;
+}
+
+.logo-path {
+  margin-left: 20rpx;
+  color: #666;
+  font-size: 26rpx;
+}
+
+.warning-box {
+  width: 686rpx;
+  margin: 24rpx auto 0;
+  background: #fff8ef;
+  border: 1rpx solid #f3d19f;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  box-sizing: border-box;
+}
+
+.warning-title {
+  color: #a15a00;
+  font-size: 26rpx;
+  margin-bottom: 8rpx;
+}
+
+.warning-item {
+  color: #b66a00;
+  font-size: 24rpx;
+  line-height: 1.6;
 }
 
 .mybtn {
-    width: 686rpx;
-    margin: 60rpx auto
+  width: 686rpx;
+  margin: 40rpx auto 20rpx;
 }
 
 .mask {
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 3;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
 }
 
 .canvas-box {
-    position: fixed;
-    top: 999999rpx;
-    left: 0
+  position: fixed;
+  top: 999999rpx;
+  left: 0;
 }

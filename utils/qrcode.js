@@ -705,6 +705,137 @@
 
 
   var _canvas = null;
+  var DEFAULT_FOREGROUND_COLOR = "#000000";
+  var DEFAULT_BACKGROUND_COLOR = "#ffffff";
+  var LOGO_MIN_RATIO = 0.12;
+  var LOGO_MAX_RATIO = 0.28;
+  var DEFAULT_LOGO_RATIO = 0.2;
+  var DEFAULT_LOGO_PADDING = 4;
+  var DEFAULT_LOGO_RADIUS = 8;
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function isValidHexColor(color) {
+    return typeof color === "string" && /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(color);
+  }
+
+  function toNumber(value, fallback) {
+    var parsed = Number(value);
+    return isNaN(parsed) ? fallback : parsed;
+  }
+
+  function getColor(value, fallback, warnings, warningText) {
+    if (value == null || value === "") {
+      return fallback;
+    }
+    if (!isValidHexColor(value)) {
+      if (warnings && warningText) {
+        warnings.push(warningText);
+      }
+      return fallback;
+    }
+    return value;
+  }
+
+  function getGradientPoints(area, angle) {
+    var radian = angle * Math.PI / 180;
+    var centerX = area.x + area.width / 2;
+    var centerY = area.y + area.height / 2;
+    var length = Math.max(area.width, area.height) / 2;
+    var dx = Math.cos(radian) * length;
+    var dy = Math.sin(radian) * length;
+    return {
+      x0: centerX - dx,
+      y0: centerY - dy,
+      x1: centerX + dx,
+      y1: centerY + dy
+    };
+  }
+
+  function drawRoundRect(ctx, x, y, width, height, radius, fillColor) {
+    var halfMin = Math.min(width, height) / 2;
+    var r = Math.max(0, Math.min(radius, halfMin));
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + width, y, x + width, y + height, r);
+    ctx.arcTo(x + width, y + height, x, y + height, r);
+    ctx.arcTo(x, y + height, x, y, r);
+    ctx.arcTo(x, y, x + width, y, r);
+    ctx.closePath();
+    ctx.setFillStyle(fillColor);
+    ctx.fill();
+  }
+
+  function normalizeDrawOptions(options) {
+    var normalized = options || {};
+    var warnings = [];
+    var gradient = normalized.gradient || {};
+    var logo = normalized.logo || {};
+    var sizeRatio = clamp(toNumber(logo.sizeRatio, DEFAULT_LOGO_RATIO), LOGO_MIN_RATIO, LOGO_MAX_RATIO);
+    var padding = Math.max(0, toNumber(logo.padding, DEFAULT_LOGO_PADDING));
+    var borderRadius = Math.max(0, toNumber(logo.borderRadius, DEFAULT_LOGO_RADIUS));
+    return {
+      warnings: warnings,
+      foregroundColor: getColor(normalized.foregroundColor, DEFAULT_FOREGROUND_COLOR, warnings, "Invalid foregroundColor; fallback to #000000"),
+      backgroundColor: getColor(normalized.backgroundColor, DEFAULT_BACKGROUND_COLOR, warnings, "Invalid backgroundColor; fallback to #ffffff"),
+      gradient: {
+        enabled: !!gradient.enabled,
+        startColor: getColor(gradient.startColor, DEFAULT_FOREGROUND_COLOR, warnings, "Invalid gradient.startColor; fallback to #000000"),
+        endColor: getColor(gradient.endColor, "#333333", warnings, "Invalid gradient.endColor; fallback to #333333"),
+        angle: toNumber(gradient.angle, 0)
+      },
+      logo: {
+        enabled: !!logo.enabled && !!logo.src,
+        src: logo.src || "",
+        sizeRatio: sizeRatio,
+        padding: padding,
+        borderRadius: borderRadius,
+        backgroundColor: getColor(logo.backgroundColor, DEFAULT_BACKGROUND_COLOR, warnings, "Invalid logo.backgroundColor; fallback to #ffffff")
+      }
+    };
+  }
+
+  function loadLogoInfo(src, callback) {
+    function tryGetImageInfo(candidates, index) {
+      if (index >= candidates.length) {
+        callback(new Error("load logo failed"), null);
+        return;
+      }
+
+      var currentSrc = candidates[index];
+      wx.getImageInfo({
+        src: currentSrc,
+        success: function (res) {
+          callback(null, {
+            path: res.path || currentSrc,
+            width: res.width || 0,
+            height: res.height || 0
+          });
+        },
+        fail: function () {
+          tryGetImageInfo(candidates, index + 1);
+        }
+      });
+    }
+
+    var isRemote = /^https?:\/\//i.test(src);
+    var candidates = [src];
+    
+    // 如果是本地路径且不是以 / 开头，尝试补全 ./
+    if (!isRemote && src.charAt(0) !== "/" && src.indexOf("./") !== 0 && src.indexOf("../") !== 0) {
+      candidates.push("./" + src);
+    }
+    
+    var uniqueCandidates = [];
+    for (var i = 0; i < candidates.length; i++) {
+      if (candidates[i] && uniqueCandidates.indexOf(candidates[i]) < 0) {
+        uniqueCandidates.push(candidates[i]);
+      }
+    }
+    tryGetImageInfo(uniqueCandidates, 0);
+  }
 
   var api = {
 
@@ -759,14 +890,19 @@
     /**
      * 新增$this参数，传入组件的this,兼容在组件中生成
      */
-    draw: function (str, canvas, cavW, cavH, $this, cb = function () {}, ecc) {
+    draw: function (str, canvas, cavW, cavH, $this, cb = function () {}, ecc, options) {
       var that = this;
-      ecclevel = ecc || ecclevel;
+      var drawOptions = normalizeDrawOptions(options);
+      var warnings = drawOptions.warnings.slice(0);
       canvas = canvas || _canvas;
       if (!canvas) {
-        console.warn('No canvas provided to draw QR code in!')
+        console.warn('No canvas provided to draw QR code in!');
         return;
       }
+      var previousEccLevel = ecclevel;
+      var useAutoHighEcc = !ecc && drawOptions.logo.enabled;
+      var drawEccLevel = ecc || (useAutoHighEcc ? 4 : ecclevel);
+      ecclevel = drawEccLevel;
 
       var size = Math.min(cavW, cavH);
       str = that.utf16to8(str); //增加中文显示
@@ -775,6 +911,9 @@
         // 组件中生成qrcode需要绑定this 
         ctx = wx.createCanvasContext(canvas, $this),
         px = Math.max(1, Math.floor(size / (width + 8)));
+      if (useAutoHighEcc) {
+        ecclevel = previousEccLevel;
+      }
       var roundedSize = px * (width + 8),
         offset = Math.floor((size - roundedSize) / 2);
       var drawArea = {
@@ -789,11 +928,27 @@
         width: width * px,
         height: width * px
       };
+      var meta = {
+        moduleSize: px,
+        qrVersion: version,
+        drawArea: drawArea,
+        codeArea: codeArea
+      };
       size = roundedSize;
       //ctx.clearRect(0, 0, cavW, cavH);
-      ctx.setFillStyle('#ffffff')
+      ctx.setFillStyle(drawOptions.backgroundColor);
       ctx.fillRect(0, 0, cavW, cavH);
-      ctx.setFillStyle('#000000');
+
+      if (drawOptions.gradient.enabled) {
+        var points = getGradientPoints(drawArea, drawOptions.gradient.angle);
+        var gradient = ctx.createLinearGradient(points.x0, points.y0, points.x1, points.y1);
+        gradient.addColorStop(0, drawOptions.gradient.startColor);
+        gradient.addColorStop(1, drawOptions.gradient.endColor);
+        ctx.setFillStyle(gradient);
+      } else {
+        ctx.setFillStyle(drawOptions.foregroundColor);
+      }
+
       for (var i = 0; i < width; i++) {
         for (var j = 0; j < width; j++) {
           if (frame[j * width + i]) {
@@ -801,15 +956,69 @@
           }
         }
       }
-      //--增加绘制完成回调
-      ctx.draw(false, function () {
-        cb({
-          moduleSize: px,
-          qrVersion: version,
-          drawArea: drawArea,
-          codeArea: codeArea
+
+      function doneDraw() {
+        if (warnings.length) {
+          meta.warnings = warnings;
+        }
+        ctx.draw(false, function () {
+          cb(meta);
         });
-      })
+      }
+
+      function drawLogo(info) {
+        var logoMaxSize = codeArea.width * drawOptions.logo.sizeRatio;
+        var safeWidth = info.width > 0 ? info.width : logoMaxSize;
+        var safeHeight = info.height > 0 ? info.height : logoMaxSize;
+        var logoAspect = safeWidth / safeHeight;
+        var logoWidth = logoMaxSize;
+        var logoHeight = logoMaxSize;
+        if (logoAspect >= 1) {
+          logoHeight = logoMaxSize / logoAspect;
+        } else {
+          logoWidth = logoMaxSize * logoAspect;
+        }
+
+        var containerWidth = logoWidth + drawOptions.logo.padding * 2;
+        var containerHeight = logoHeight + drawOptions.logo.padding * 2;
+        var containerX = codeArea.x + (codeArea.width - containerWidth) / 2;
+        var containerY = codeArea.y + (codeArea.height - containerHeight) / 2;
+        var logoX = containerX + drawOptions.logo.padding;
+        var logoY = containerY + drawOptions.logo.padding;
+
+        drawRoundRect(
+          ctx,
+          containerX,
+          containerY,
+          containerWidth,
+          containerHeight,
+          drawOptions.logo.borderRadius,
+          drawOptions.logo.backgroundColor
+        );
+
+        ctx.drawImage(info.path, logoX, logoY, logoWidth, logoHeight);
+        meta.logoArea = {
+          x: logoX,
+          y: logoY,
+          width: logoWidth,
+          height: logoHeight
+        };
+        doneDraw();
+      }
+
+      if (!drawOptions.logo.enabled) {
+        doneDraw();
+        return;
+      }
+
+      loadLogoInfo(drawOptions.logo.src, function (err, logoInfo) {
+        if (err || !logoInfo || !logoInfo.path) {
+          warnings.push("Logo load failed; rendered QR without logo");
+          doneDraw();
+          return;
+        }
+        drawLogo(logoInfo);
+      });
 
     }
   }
