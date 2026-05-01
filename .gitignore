@@ -44,3 +44,4 @@ Temporary Items
 .vscode
 typings
 jsconfig.json
+project.private.config.json
